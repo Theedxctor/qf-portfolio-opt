@@ -1,0 +1,20 @@
+services:
+  database:
+    image: postgres:latest
+    container_name: qffun-db
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=devpassword
+      - POSTGRES_USER=devdocker
+      - POSTGRES_DB=qffun
+    volumes:
+      - ./postgres_data:/var/lib/postgresql
+    restart: always
+
+  adminer:
+    image: adminer:latest
+    container_name: qffun-adminer
+    restart: always
+    ports:
+      - 8080:8080

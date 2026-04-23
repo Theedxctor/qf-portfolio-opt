@@ -1,0 +1,14 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Data & Large Files
+sp500.html
+*.log
+.env
+
+# Ide
+.vscode/
+.idea/
