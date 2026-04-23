@@ -13,12 +13,12 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: "3.12"
-
+  
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        pip install torch --index-url https://download.pytorch.org/whl/cpu 
         pip install black isort flake8 mypy -r requirements.txt
-        # If requirements.txt doesn't exist, use the names directly
 
     - name: Run Black
       run: black . --check
