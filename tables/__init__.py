@@ -1,11 +1,15 @@
 # tables/__init__.py
 from typing import Any
+
 from sqlalchemy.orm import DeclarativeBase
+
 
 class Base(DeclarativeBase):
     """Base Class for SQLAlchemy"""
+
     def __repr__(self) -> str:
         return get_attributes(self)
+
 
 def get_attributes(obj: Any) -> str:
     """Helper to make printing/debugging your data much cleaner"""

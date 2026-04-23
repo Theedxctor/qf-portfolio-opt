@@ -12,3 +12,4 @@ sp500.html
 # Ide
 .vscode/
 .idea/
+postgres_data/
