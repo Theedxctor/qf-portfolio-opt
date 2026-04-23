@@ -1,52 +1,64 @@
-# scripts/portfolio_env.py
 import gymnasium as gym
 import numpy as np
 import pandas as pd
 from gymnasium import spaces
-from sqlalchemy import create_engine
 
 
 class PortfolioEnv(gym.Env):
-    def __init__(self):
+    """
+    A Reinforcement Learning Environment for Portfolio Optimization.
+    Accepts a pre-cleaned DataFrame and simulates daily trading.
+    """
+
+    def __init__(self, df: pd.DataFrame):
         super(PortfolioEnv, self).__init__()
 
-        # 1. Load your cleaned data from Postgres
-        engine = create_engine("postgresql://devdocker:devpassword@localhost:5432/qffun")
-        df = pd.read_sql("SELECT * FROM stock_returns_clean", engine)
+        # 1. Data Transformation
+        # Pivot the long-format DB data into a Wide-Format Matrix
+        # Rows: Dates, Columns: Assets, Values: Returns
+        self.pivot_df = df.pivot(index="date", columns="asset", values="clean_return")
+        self.data = self.pivot_df.values.astype(np.float32)
 
-        # Pivot so columns are assets
-        self.data = df.pivot(index="date", columns="asset", values="clean_return").values
         self.n_assets = self.data.shape[1]
-        self.window_size = 30  # AI looks at the last 30 days
+        self.window_size = 30  # AI looks at the previous 30 days of returns
 
-        # 2. Define Action Space: Continuous weights between 0 and 1
+        # 2. Action Space: Continuous weights for each asset [0, 1]
+        # The agent outputs 144 numbers; we will normalize them to sum to 1.0
         self.action_space = spaces.Box(low=0, high=1, shape=(self.n_assets,), dtype=np.float32)
 
-        # 3. Define Observation Space: (window_size, n_assets)
+        # 3. Observation Space: A 2D matrix of shape (30, 144)
         self.observation_space = spaces.Box(low=-5, high=5, shape=(self.window_size, self.n_assets), dtype=np.float32)
 
         self.current_step = self.window_size
 
     def reset(self, seed=None, options=None):
+        """Resets the environment to the starting date."""
         super().reset(seed=seed)
         self.current_step = self.window_size
         return self._get_observation(), {}
 
     def _get_observation(self):
-        # Return the last 30 days of data
+        """Returns the last 30 days of returns as the current state."""
         return self.data[self.current_step - self.window_size : self.current_step]
 
     def step(self, action):
-        # 1. Normalize weights so they sum to 1.0
+        """
+        Executes one day of trading.
+        1. Normalizes actions into portfolio weights.
+        2. Calculates the portfolio return for the day.
+        3. Returns the next state, reward, and status.
+        """
+        # 1. Normalize actions so weights sum to 100% (1.0)
+        # We add a tiny epsilon (1e-10) to avoid division by zero
         weights = action / (np.sum(action) + 1e-10)
 
-        # 2. Calculate today's returns
-        returns = self.data[self.current_step]
-        portfolio_return = np.dot(weights, returns)
+        # 2. Get today's returns for all 144 assets
+        day_returns = self.data[self.current_step]
 
-        # 3. Calculate Reward (Sharpe-style: Return / Std Dev)
-        # For simplicity in this step, we use portfolio return as the immediate reward
-        reward = portfolio_return
+        # 3. Reward = Portfolio Return (Dot product of weights and returns)
+        # In a more complex model, this would be the Sharpe Ratio
+        portfolio_return = np.dot(weights, day_returns)
+        reward = float(portfolio_return)
 
         # 4. Advance time
         self.current_step += 1
@@ -54,21 +66,23 @@ class PortfolioEnv(gym.Env):
 
         return self._get_observation(), reward, done, False, {}
 
-        # Save this at the bottom of portfolio_env.py or run it in a notebook
-
 
 if __name__ == "__main__":
-    # Initialize the world
-    env = PortfolioEnv()
+    # Internal Test Block to verify the environment works locally
+    from sqlalchemy import create_engine
 
-    # Start the simulation
-    obs, _ = env.reset()
-    print(f" Success! Initial Observation Shape: {obs.shape}")
-    # Should be (30, 155) -> 30 days of history for 155 stocks
+    engine = create_engine("postgresql://devdocker:devpassword@localhost:5432/qffun")
+    try:
+        sample_df = pd.read_sql("SELECT * FROM stock_returns_clean LIMIT 5000", engine)
+        env = PortfolioEnv(sample_df)
+        obs, _ = env.reset()
 
-    # Take one random step
-    random_action = env.action_space.sample()
-    next_obs, reward, done, _, _ = env.step(random_action)
+        print(f" Environment initialized with {env.n_assets} assets.")
+        print(f" Observation shape (Window, Assets): {obs.shape}")
 
-    print(f" Reward for random move: {reward:.6f}")
-    print(" The environment is ready for training!")
+        # Take a dummy step with random weights
+        random_action = env.action_space.sample()
+        _, reward, done, _, _ = env.step(random_action)
+        print(f" Test step reward: {reward:.6f}")
+    except Exception as e:
+        print(f" Test failed: {e}")
