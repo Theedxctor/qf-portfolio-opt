@@ -20,5 +20,5 @@ skip = ["venv", "postgres_data"]
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
-# Mypy should also ignore the data
+explicit_package_bases = true
 exclude = ["venv", "postgres_data"]
